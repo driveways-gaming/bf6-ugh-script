@@ -1,3 +1,253 @@
+// Time
+namespace Driveways {
+    export class Time {
+        private static tick: number = 0;
+        static instance: Time = new Time();
+        constructor() {
+            Time.tick = 0;
+            Driveways.Events.OngoingGlobal(() => {
+                Time.tick++;
+            });
+        }
+        static get Tick(): number {
+            return this.tick;
+        }
+        static get ServerTime(): number {
+            return this.tick / 30;
+        }
+        static TicksSince(tick: number): number {
+            return this.tick - tick;
+        }
+    }
+}
+// Logging
+namespace Driveways {
+    export namespace Logging {
+        export enum LogLevel {
+            Debug,
+            Info,
+            Warn,
+            Error,
+        }
+        class Logger {
+            private static logLevel: LogLevel = LogLevel.Info;
+            static log(message: string, logLevel: LogLevel): void {
+                if (logLevel >= Logger.logLevel) {
+                    console.log("[" + Driveways.Time.ServerTime.toFixed(3) + "] " + message);
+                }
+            }
+        }
+        export function VectorToString(vector: mod.Vector): string {
+            return "(" + mod.XComponentOf(vector) + ", " + mod.YComponentOf(vector) + ", " + mod.ZComponentOf(vector) + ")";
+        }
+        export function Log(message: string): void {
+            Logger.log(message, LogLevel.Info);
+        }
+        export function Debug(message: string): void {
+            Logger.log(message, LogLevel.Debug);
+        }
+        export function Info(message: string): void {
+            Logger.log(message, LogLevel.Info);
+        }
+        export function Warn(message: string): void {
+            Logger.log(message, LogLevel.Warn);
+        }
+        export function Error(message: string): void {
+            Logger.log(message, LogLevel.Error);
+        }
+    }
+}
+const Log = Driveways.Logging.Log;
+const Error = Driveways.Logging.Error;
+// Events
+namespace Driveways {
+    export interface DeregisterFn {
+        (): void;
+    }
+    export class Events {
+        private static callbacks: Map<string, Function[]> = new Map();
+        private static register(event: string, callback: Function): DeregisterFn {
+            if (!Events.callbacks.has(event)) {
+                Events.callbacks.set(event, []);
+            }
+            Events.callbacks.get(event)!.push(callback);
+            return () => {
+                Events.callbacks.get(event)!.splice(Events.callbacks.get(event)!.indexOf(callback), 1);
+            };
+        }
+        private static dispatch(event: string, ...args: any[]): void {
+            const callbacks = Events.callbacks.get(event);
+            if (!callbacks) return;
+            callbacks.forEach((cb, index) => {
+                try {
+                    cb(...args);
+                } catch (e) {
+                    console.error(`[Events] Exception in ${event} handler #${index}:`, e);
+                }
+            });
+        }
+        static OngoingGlobal(callback: () => void): DeregisterFn {
+            return Events.register('OngoingGlobal', callback);
+        }
+        static OnPlayerDeployed(callback: (player: mod.Player) => void): DeregisterFn {
+            return Events.register('OnPlayerDeployed', callback);
+        }
+        static OnPlayerDied(callback: (player: mod.Player) => void): DeregisterFn {
+            return Events.register('OnPlayerDied', callback);
+        }
+        static OnPlayerJoinGame(callback: (player: mod.Player) => void): DeregisterFn {
+            return Events.register('OnPlayerJoinGame', callback);
+        }
+        static OnPlayerLeaveGame(callback: (playerId: number) => void): DeregisterFn {
+            return Events.register('OnPlayerLeaveGame', callback);
+        }
+        static OngoingPlayer(callback: (player: mod.Player) => void): DeregisterFn {
+            return Events.register('OngoingPlayer', callback);
+        }
+        static OngoingLivePlayer(callback: (player: mod.Player) => void): DeregisterFn {
+            const wrapped = (player: mod.Player) => {
+                if (Driveways.Players.isAlive(player)) {
+                    callback(player);
+                }
+            };
+            return Events.register('OngoingPlayer', wrapped);
+        }
+        static OnGameModeStarted(callback: () => void): DeregisterFn {
+            return Events.register('OnGameModeStarted', callback);
+        }
+        static dispatchOngoingGlobal(): void { Events.dispatch('OngoingGlobal'); }
+        static dispatchOnPlayerDeployed(player: mod.Player): void { Events.dispatch('OnPlayerDeployed', player); }
+        static dispatchOnPlayerDied(player: mod.Player): void { Events.dispatch('OnPlayerDied', player); }
+        static dispatchOnPlayerJoinGame(player: mod.Player): void { Events.dispatch('OnPlayerJoinGame', player); }
+        static dispatchOnPlayerLeaveGame(playerId: number): void { Events.dispatch('OnPlayerLeaveGame', playerId); }
+        static dispatchOngoingPlayer(player: mod.Player): void { Events.dispatch('OngoingPlayer', player); }
+        static dispatchOnGameModeStarted(): void { Events.dispatch('OnGameModeStarted'); }
+        static LogNumCallbacks(): void {
+            let logString = "Callbacks by event name:";
+            for (const [eventName, callbacks] of Events.callbacks.entries()) {
+                logString += "\n" + eventName + ": " + callbacks.length;
+            }
+            Log(logString);
+        }
+    }
+}
+// Players
+namespace Driveways {
+    export class Players {
+        private static teamMembers: Map<number, Set<number>> = new Map();
+        private static playerToTeam: Map<number, number> = new Map();
+        private static playerIsBot: Map<number, boolean> = new Map();
+        constructor() {
+            const allPlayers = mod.AllPlayers();
+            const n = mod.CountOf(allPlayers);
+            let foundAlivePlayers = 0;
+            for (let i = 0; i < n; i++) {
+                let player = mod.ValueInArray(allPlayers, i) as mod.Player;
+                const isAlive = mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive);
+                if (isAlive) {
+                    foundAlivePlayers++;
+                    const playerId = mod.GetObjId(player);
+                    const team = mod.GetTeam(player);
+                    const teamId = mod.GetObjId(team);
+                    const isBot = mod.GetSoldierState(player, mod.SoldierStateBool.IsAISoldier);
+                    Error(`[Players] ASSERTION FAILED: Player ${playerId} already alive on script load. This should not happen.`);
+                    Players.addPlayer(playerId, teamId, isBot);
+                }
+            }
+            if (foundAlivePlayers > 0) {
+                Error(`[Players] ASSERTION FAILED: Found ${foundAlivePlayers} already-deployed player(s) on script load.`);
+            }
+            Driveways.Events.OnPlayerDeployed((player: mod.Player) => {
+                const playerId = mod.GetObjId(player);
+                const team = mod.GetTeam(player);
+                const teamId = mod.GetObjId(team);
+                const isBot = mod.GetSoldierState(player, mod.SoldierStateBool.IsAISoldier);
+                Players.addPlayer(playerId, teamId, isBot);
+            });
+            Driveways.Events.OnPlayerDied((player: mod.Player) => {
+                const playerId = mod.GetObjId(player);
+                Players.removePlayer(playerId);
+            });
+            Driveways.Events.OnPlayerLeaveGame((playerId: number) => {
+                Players.removePlayer(playerId);
+            });
+        }
+        static reset(): void {
+            this.teamMembers.clear();
+            this.playerToTeam.clear();
+            this.playerIsBot.clear();
+            const allPlayers = mod.AllPlayers();
+            const n = mod.CountOf(allPlayers);
+            for (let i = 0; i < n; i++) {
+                let player = mod.ValueInArray(allPlayers, i) as mod.Player;
+                const playerId = mod.GetObjId(player);
+                const team = mod.GetTeam(player);
+                const teamId = mod.GetObjId(team);
+                if (mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
+                    const isBot = mod.GetSoldierState(player, mod.SoldierStateBool.IsAISoldier);
+                    this.addPlayer(playerId, teamId, isBot);
+                }
+            }
+        }
+        private static addPlayer(playerId: number, teamId: number, isBot?: boolean): void {
+            if (!this.teamMembers.has(teamId)) {
+                this.teamMembers.set(teamId, new Set());
+            }
+            this.teamMembers.get(teamId)!.add(playerId);
+            this.playerToTeam.set(playerId, teamId);
+            if (isBot !== undefined) {
+                this.playerIsBot.set(playerId, isBot);
+            }
+        }
+        private static removePlayer(playerId: number): void {
+            const teamId = this.playerToTeam.get(playerId);
+            if (teamId !== undefined) {
+                this.teamMembers.get(teamId)?.delete(playerId);
+                this.playerToTeam.delete(playerId);
+                this.playerIsBot.delete(playerId);
+            }
+        }
+        static getPlayerTeam(playerId: number): number | undefined;
+        static getPlayerTeam(player: mod.Player): number | undefined;
+        static getPlayerTeam(playerOrId: number | mod.Player): number | undefined {
+            const playerId = typeof playerOrId === 'number' ? playerOrId : mod.GetObjId(playerOrId);
+            return this.playerToTeam.get(playerId);
+        }
+        static isPlayerBot(playerId: number): boolean;
+        static isPlayerBot(player: mod.Player): boolean;
+        static isPlayerBot(playerOrId: number | mod.Player): boolean {
+            const playerId = typeof playerOrId === 'number' ? playerOrId : mod.GetObjId(playerOrId);
+            return this.playerIsBot.get(playerId) || false;
+        }
+        static isAlive(playerId: number): boolean;
+        static isAlive(player: mod.Player): boolean;
+        static isAlive(playerOrId: number | mod.Player): boolean {
+            const playerId = typeof playerOrId === 'number' ? playerOrId : mod.GetObjId(playerOrId);
+            return this.playerToTeam.has(playerId);
+        }
+        static getPlayerCount(teamId: number): number {
+            return this.teamMembers.get(teamId)?.size || 0;
+        }
+    }
+}
+
+
+function oldWay(player: mod.Player) {
+    // Skip invalid, dead, or AI players
+    if (!mod.IsPlayerValid(player) || !mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive) || mod.GetSoldierState(player, mod.SoldierStateBool.IsAISoldier)) {
+        return false;
+    }
+    return true;
+}
+
+function newWay(player: mod.Player) {
+    if (!Driveways.Players.isAlive(player)) {
+        return false;
+    }
+    return true;
+}
+
+
 // === Zombies.ts ===
 //import * as modlib from 'modlib';
 //import { ParseUI } from "modlib";
