@@ -410,11 +410,11 @@ let ZOMBIE_TARGET_UPDATE_INTERVAL = 0.6; // Update target every .6 seconds
 let playerLastWeapon: {[key: number]: mod.InventorySlots} = {}; // Track last held weapon per player
 const SPAWNER_MARKER_ID_OFFSET = 12000;
 let playerSlotWeapons: {[playerId: number]: {[slot: number]: mod.Weapons}} = {};
-let activeSpawnerIds: Set<number> = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 
-21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
- 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 
- 51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
- 61, 62, 63, 64]); // 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64
+let activeSpawnerIds: Set<number> = new Set([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]);
+//21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40,
+ //41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 
+ //51, 52, 53, 54, 55, 56, 57, 58, 59, 60,
+ //61, 62, 63, 64]); // 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64
 let currentWave = 0;
 let zombiesRemaining = 0;
 let zombiesAlive = 0;
@@ -491,9 +491,9 @@ function getLeapTierForHeight(yDifference: number): ZombieLeapTier | null {
         if (yDifference >= tier.minHeight && yDifference <= tier.maxHeight) {
             
             // Log which tier was chosen
-            // console.log(
-            //     `[LEAP TIER MATCH] Height: ${yDifference.toFixed(1)}m. Matched Tier: ${tier.minHeight}m to ${tier.maxHeight}m. (Limit: ${tier.horizontalLimit}m, Duration: ${tier.duration}s, Windup: ${tier.windupDelay}s, Boost D: ${tier.boostDuration}s)`
-            // );
+            console.log(
+                `[LEAP TIER MATCH] Height: ${yDifference.toFixed(1)}m. Matched Tier: ${tier.minHeight}m to ${tier.maxHeight}m. (Limit: ${tier.horizontalLimit}m, Duration: ${tier.duration}s, Windup: ${tier.windupDelay}s, Boost D: ${tier.boostDuration}s)`
+            );
             
             return tier; // Found a matching tier
         }
@@ -507,8 +507,8 @@ function findNearestHumanPlayer(targetPos: mod.Vector): mod.Player | null {
     let nearestPlayer: mod.Player | null = null;
     let shortestDistSq = Infinity;
     
-    for (const idStr in ZombiePlayer.allPlayers) {
-        const zpInstance = ZombiePlayer.allPlayers[parseInt(idStr)];
+    for (const id in ZombiePlayer.allPlayers) {
+        const zpInstance = ZombiePlayer.allPlayers[parseInt(id)];
         const player = zpInstance.player;
         
         // Skip invalid, dead, or AI players
@@ -612,7 +612,7 @@ async function performHunterLeap(hunter: mod.Player, target: mod.Player, targetI
         }
         
         // Check if the target is still valid (in case they died during the leap)
-        if (!mod.IsPlayerValid(target)) {
+        if (!mod.IsPlayerValid(target) || !mod.GetSoldierState(target, mod.SoldierStateBool.IsAlive)) {
             console.log("Hunter target invalid during leap. Aborting.");
             mod.StopActiveMovementForObject(hunter);
             break;
@@ -665,7 +665,7 @@ function findNearestSmoker(victim: mod.Player, maxDistance: number): mod.Player 
 
         const smokerPlayer = zombie.player;
 
-        if (mod.IsPlayerValid(smokerPlayer)) {
+        if (mod.IsPlayerValid(smokerPlayer) && mod.GetSoldierState(smokerPlayer, mod.SoldierStateBool.IsAlive)) {
             
             // --- THIS IS THE FIX ---
             // 1. READINESS CHECK: Check if this Smoker is on the 10-second cooldown
@@ -706,7 +706,7 @@ function findNearestPlayer(zombiePosition: mod.Vector): mod.Player | undefined {
         let zPlayer = ZombiePlayer.allPlayers[id];
         
         // Only target alive players
-        if (!zPlayer.isAlive || !mod.IsPlayerValid(zPlayer.player)) {
+        if (!zPlayer.isAlive || !mod.IsPlayerValid(zPlayer.player)|| !mod.GetSoldierState(zPlayer.player, mod.SoldierStateBool.IsAlive)) {
             continue;
         }
         
@@ -902,7 +902,7 @@ function getRandomAlivePlayer(): mod.Player | undefined {
     for (let id in ZombiePlayer.allPlayers) {
         let zPlayer = ZombiePlayer.allPlayers[id];
         
-        if (zPlayer.isAlive && mod.IsPlayerValid(zPlayer.player)) {
+        if (zPlayer.isAlive && mod.IsPlayerValid(zPlayer.player)&& mod.GetSoldierState(zPlayer.player, mod.SoldierStateBool.IsAlive)) {
             alivePlayers.push(zPlayer.player);
         }
     }
@@ -1221,24 +1221,35 @@ export function OnPlayerLeaveGame(playerId: number) {
     delete playerSecondaryWeapon[playerId];
     delete playerMeleeWeapon[playerId];
     delete playerShoveStates[playerId]; // <-- ADD THIS
-    if (playerReloadTracking[playerId]) {
-            delete playerReloadTracking[playerId];
-        }
+    delete playerShoveStates[playerId];
+    disabledPlayerIds.delete(playerId);
+    disabledPlayerIds.delete(pouncedPlayerId);
+    disabledPlayerIds.delete(pulledPlayerId);
+    delete playerRegenTracking[playerId];
+    delete drillerUIActive[playerId];
+    delete playerPrimaryPapTier[playerId];
+    delete playerSecondaryPapTier[playerId];
+    delete playerMeleePapTier[playerId];
+    delete playerLastWeapon[playerId];
+    delete playerSlotWeapons[playerId];
+    //if (playerReloadTracking[playerId]) {
+           delete playerReloadTracking[playerId];
+        //}
         // Cleanup Engineer State
-        if (engineerStates[playerId]) {
+        //if (engineerStates[playerId]) {
              delete engineerStates[playerId];
-        }
+        //}
 
         // Cleanup Engineer UI
-        if (zpInstance) {
+        //if (zpInstance) {
             // Call the new global function
-            destroyEngineerUI(zpInstance);
-        }
+            //destroyEngineerUI(zpInstance);
+        //}
 
         // Cleanup Support State (Ammo Bonus)
-    if (supportStates[playerId]) { // <-- NEW CLEANUP
+    //if (supportStates[playerId]) { // <-- NEW CLEANUP
          delete supportStates[playerId];
-    }
+    //}
     
     console.log("Player left. Total players: ", playerCount);
 }
@@ -1383,8 +1394,8 @@ export async function OnPlayerDeployed(player: mod.Player) {
             mod.AISetStance(player, mod.Stance.Stand);
             mod.SetPlayerMovementSpeedMultiplier(player, 1.25); //1.25
             mod.SetPlayerMaxHealth(player, 350);
-            mod.SetInventoryAmmo(player, mod.InventorySlots.PrimaryWeapon, 0);
-            mod.SetInventoryMagazineAmmo(player, mod.InventorySlots.PrimaryWeapon, 0);
+            //mod.SetInventoryAmmo(player, mod.InventorySlots.PrimaryWeapon, 0);
+            //mod.SetInventoryMagazineAmmo(player, mod.InventorySlots.PrimaryWeapon, 0);
 
         // --- NEW HUNTER SETUP ---
         } else if (isHunterZombie) {
@@ -1524,8 +1535,8 @@ export async function OnPlayerDeployed(player: mod.Player) {
 
             // 3. WIDGET CREATION
             // Call the new global function
-            await mod.Wait(2);
-            createEngineerUI(player);
+            //await mod.Wait(2);
+            //createEngineerUI(player);
         }
 
     } else if (mod.IsSoldierClass(player, mod.SoldierClass.Support)) {
@@ -1766,6 +1777,26 @@ export function OnPlayerUndeploy(player: mod.Player) {
         console.log(`Smoker Puller (ID: ${playerID}) undeployed. Terminating pull.`);
         // This function resets the global flags (smokerPullActive, pulledPlayerId, smokerPullerId)
         endSmokerPull(); 
+
+        delete playerShoveStates[playerID];
+        delete playerReloadTracking[playerID];
+        delete engineerStates[playerID];
+        //destroyEngineerUI(pObj);
+        delete supportStates[playerID];
+        disabledPlayerIds.delete(playerID);
+        disabledPlayerIds.delete(pouncedPlayerId);
+        disabledPlayerIds.delete(pulledPlayerId);
+        delete playerRegenTracking[playerID];
+        delete playerWeapons[playerID];
+        delete playerPrimaryWeapon[playerID];
+        delete playerSecondaryWeapon[playerID];
+        delete playerMeleeWeapon[playerID];  // Add any others you have
+        delete drillerUIActive[playerID];
+        delete playerPrimaryPapTier[playerID];
+        delete playerSecondaryPapTier[playerID];
+        delete playerMeleePapTier[playerID];
+        delete playerLastWeapon[playerID];
+        delete playerSlotWeapons[playerID];
     }
 
     // --- HUNTER POUNCE CLEANUP ---
@@ -1783,6 +1814,26 @@ export function OnPlayerUndeploy(player: mod.Player) {
         //if (Object.keys(hunterPounceStates).length === 0) {
              //isHunterPounceActive = false;
          //}
+
+        delete playerShoveStates[playerID];
+        delete playerReloadTracking[playerID];
+        delete engineerStates[playerID];
+        //destroyEngineerUI(pObj);
+        delete supportStates[playerID];
+        disabledPlayerIds.delete(playerID);
+        disabledPlayerIds.delete(pouncedPlayerId);
+        disabledPlayerIds.delete(pulledPlayerId);
+        delete playerRegenTracking[playerID];
+        delete playerWeapons[playerID];
+        delete playerPrimaryWeapon[playerID];
+        delete playerSecondaryWeapon[playerID];
+        delete playerMeleeWeapon[playerID];  // Add any others you have
+        delete drillerUIActive[playerID];
+        delete playerPrimaryPapTier[playerID];
+        delete playerSecondaryPapTier[playerID];
+        delete playerMeleePapTier[playerID];
+        delete playerLastWeapon[playerID];
+        delete playerSlotWeapons[playerID];
     }
     
     if (isAI) {
@@ -1825,8 +1876,31 @@ export function OnPlayerUndeploy(player: mod.Player) {
                 //mod.SpawnAIFromAISpawner(spawner, mod.SoldierClass.Assault, mod.GetTeam(1));
             }
         }
-    }
+
+       } else {
+
+        delete playerShoveStates[playerID];
+        delete playerReloadTracking[playerID];
+        delete engineerStates[playerID];
+        //destroyEngineerUI(pObj);
+        delete supportStates[playerID];
+        disabledPlayerIds.delete(playerID);
+        disabledPlayerIds.delete(pouncedPlayerId);
+        disabledPlayerIds.delete(pulledPlayerId);
+        delete playerRegenTracking[playerID];
+        delete playerWeapons[playerID];
+        delete playerPrimaryWeapon[playerID];
+        delete playerSecondaryWeapon[playerID];
+        delete playerMeleeWeapon[playerID];  // Add any others you have
+        delete drillerUIActive[playerID];
+        delete playerPrimaryPapTier[playerID];
+        delete playerSecondaryPapTier[playerID];
+        delete playerMeleePapTier[playerID];
+        delete playerLastWeapon[playerID];
+        delete playerSlotWeapons[playerID];
+       }
 }
+        
 export function OnMandown(victim: mod.Player, attacker: mod.Player) {
     let victimIsAI = mod.GetSoldierState(victim, mod.SoldierStateBool.IsAISoldier);
     
@@ -1895,7 +1969,27 @@ export function OnPlayerDied(
            // --- ADDED FIX ---
         // Stop execution here. The player is dead, but all cleanup is handled
         // by endSmokerPull() and the normal respawn flow.
-        return;
+        delete playerShoveStates[victimId];
+        delete playerReloadTracking[victimId];
+        delete engineerStates[victimId];
+        //destroyEngineerUI(pObj);
+        delete supportStates[victimId];
+        disabledPlayerIds.delete(victimId);
+        disabledPlayerIds.delete(pouncedPlayerId);
+        disabledPlayerIds.delete(pulledPlayerId);
+        delete playerRegenTracking[victimId];
+        delete playerWeapons[victimId];
+        delete playerPrimaryWeapon[victimId];
+        delete playerSecondaryWeapon[victimId];
+        delete playerMeleeWeapon[victimId];  // Add any others you have
+        delete drillerUIActive[victimId];
+        delete playerPrimaryPapTier[victimId];
+        delete playerSecondaryPapTier[victimId];
+        delete playerMeleePapTier[victimId];
+        delete playerLastWeapon[victimId];
+        delete playerSlotWeapons[victimId];
+
+        //return;
         }
     //}
     
@@ -1904,6 +1998,7 @@ export function OnPlayerDied(
         console.log("Puller Smoker died. Terminating pull immediately from OnPlayerDied.");
         endSmokerPull(); 
         // FALL THROUGH: Continue to cleanup block below to remove Smoker's ID from maps.
+        return;
     }
 
     // --- NEW: HUNTER POUNCE TERMINATION CHECKS ---
@@ -1917,6 +2012,26 @@ export function OnPlayerDied(
             // --- ADDED FIX ---
         // Stop execution here. The player is dead, but all cleanup is handled
         // by endSmokerPull() and the normal respawn flow.
+        delete playerShoveStates[victimId];
+        delete playerReloadTracking[victimId];
+        delete engineerStates[victimId];
+        //destroyEngineerUI(pObj);
+        delete supportStates[victimId];
+        disabledPlayerIds.delete(victimId);
+        disabledPlayerIds.delete(pouncedPlayerId);
+        disabledPlayerIds.delete(pulledPlayerId);
+        delete playerRegenTracking[victimId];
+        delete playerWeapons[victimId];
+        delete playerPrimaryWeapon[victimId];
+        delete playerSecondaryWeapon[victimId];
+        delete playerMeleeWeapon[victimId];  // Add any others you have
+        delete drillerUIActive[victimId];
+        delete playerPrimaryPapTier[victimId];
+        delete playerSecondaryPapTier[victimId];
+        delete playerMeleePapTier[victimId];
+        delete playerLastWeapon[victimId];
+        delete playerSlotWeapons[victimId];
+
         return;
         }
     //}
@@ -1926,6 +2041,7 @@ export function OnPlayerDied(
         console.log("Pouncer Hunter died. Terminating pounce immediately.");
         endHunterPounce();
         // FALL THROUGH to AI cleanup
+        return;
     }
     
 if (victimIsAI) {
@@ -2018,25 +2134,39 @@ if (victimIsAI) {
         //delete playerPrimaryWeapon[victimId];
         //delete playerSecondaryWeapon[victimId];
         //delete playerMeleeWeapon[victimId];
+        disabledPlayerIds.delete(victimId);
+        disabledPlayerIds.delete(pouncedPlayerId);
+        disabledPlayerIds.delete(pulledPlayerId);
+        delete playerRegenTracking[victimId];
+        delete playerWeapons[victimId];
+        delete playerPrimaryWeapon[victimId];
+        delete playerSecondaryWeapon[victimId];
+        delete playerMeleeWeapon[victimId];  // Add any others you have
+        delete drillerUIActive[victimId];
+        delete playerPrimaryPapTier[victimId];
+        delete playerSecondaryPapTier[victimId];
+        delete playerMeleePapTier[victimId];
+        delete playerLastWeapon[victimId];
+        delete playerSlotWeapons[victimId];
         delete playerShoveStates[victimId]; // <-- ADD THIS
-        if (playerReloadTracking[victimId]) {
+        //if (playerReloadTracking[victimId]) {
             delete playerReloadTracking[victimId];
-        }
+        //}
         // Cleanup Engineer State
-        if (engineerStates[victimId]) {
+        //if (engineerStates[victimId]) {
              delete engineerStates[victimId];
-        }
+        //}
 
         // Cleanup Engineer UI
-        if (zpInstance) {
+        //if (zpInstance) {
             // Call the new global function
-            destroyEngineerUI(zpInstance);
-        }
+            //destroyEngineerUI(zpInstance);
+        //}
 
         // Cleanup Support State (Ammo Bonus)
-    if (supportStates[victimId]) { // <-- NEW CLEANUP
+    //if (supportStates[victimId]) { // <-- NEW CLEANUP
          delete supportStates[victimId];
-    }
+    //}
     // 1. Remove core player object (The one containing playerClassId)
         delete ZombiePlayer.allPlayers[victimId];
         console.log("Cleared all weapon PaP data (primary, secondary, melee) for player ", victimId);
@@ -2087,14 +2217,14 @@ async function triggerGameOver() {
 
 function despawnAllZombies() {
     // Kill all zombie AI
-    for (const idStr in Zombie.allZombies) {
-        const zombieIdalt = parseInt(idStr);
-    for (let zombieId in Zombie.allZombies) {
-        let zombie = Zombie.allZombies[zombieId];
+    for (let id in Zombie.allZombies) { //const idstr
+        let zombieIdalt = parseInt(id); //const
+    for (let zombieId in Zombie.allZombies) { //let
+        let zombie = Zombie.allZombies[zombieId]; //let
         if (zombie && zombie.player && mod.IsPlayerValid(zombie.player)) {
             mod.Kill(zombie.player);
             Zombie.remove(parseInt(zombieId));
-            delete Zombie.allZombies[idStr];
+            delete Zombie.allZombies[id]; //idstr
             delete zombieStunTimers[zombieIdalt];
             delete zombieLastDamageTime[zombieIdalt]; 
             delete zombieSlapWindups[zombieIdalt];
@@ -2137,6 +2267,80 @@ export function OngoingGlobal() {
     mod.InventorySlots.SecondaryWeapon
 ];
 
+// ==========================================================
+// --- TOP-LEVEL DEAD PLAYER CLEANUP (Crash Defense & Status Update) ---
+// ==========================================================
+for (let id in ZombiePlayer.allPlayers) { //const idstr
+    let playerId = parseInt(id); //const
+    // Note: 'player' is the mod.Player object, which becomes invalid when they die/undeploy.
+    let pObj = ZombiePlayer.allPlayers[id]; //const
+    let player = pObj?.player; //const
+    
+    // ... (CRITICAL CRASH FIX & GLOBAL CLEANUP) ...
+    if (!player || !mod.IsPlayerValid(player) || !mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
+        
+        // 1. Retrieve the ZombiePlayer object using the ID (since the player object is invalid)
+        // Assuming ZombiePlayer.get(playerId) works or you can use ZombiePlayer.allPlayers[idStr]
+        let zPlayer = ZombiePlayer.get(player); 
+
+        if (zPlayer) {
+            // A. PLAYER STATUS UPDATE (Your requested logic, only if not already marked dead)
+            if (zPlayer.isAlive) { 
+                zPlayer.isAlive = false;
+                zPlayer.deaths++;
+                
+                // B. GAME OVER CHECK
+                if (areAllPlayersDead()) {
+                    triggerGameOver();
+                }
+                console.log(`OngoingGlobal detected death of player ${playerId} and updated status.`);
+            }
+
+            // 2. Clean up player-specific tracking maps (General Crash Prevention)
+            delete playerShoveStates[playerId];
+            delete playerReloadTracking[playerId];
+            delete engineerStates[playerId];
+            //destroyEngineerUI(pObj);
+            delete supportStates[playerId];
+            disabledPlayerIds.delete(playerId);
+            disabledPlayerIds.delete(pouncedPlayerId);
+            disabledPlayerIds.delete(pulledPlayerId);
+            delete playerRegenTracking[playerId];
+            delete playerWeapons[playerId];
+            delete playerPrimaryWeapon[playerId];
+            delete playerSecondaryWeapon[playerId];
+            delete playerMeleeWeapon[playerId];  // Add any others you have
+            delete drillerUIActive[playerId];
+            delete playerPrimaryPapTier[playerId];
+            delete playerSecondaryPapTier[playerId];
+            delete playerMeleePapTier[playerId];
+            delete playerLastWeapon[playerId];
+            delete playerSlotWeapons[playerId];
+            // Add any other player state maps here:
+            // delete playerReloadTracking[playerId]; 
+            
+            // 3. Clean up Special Infected Locks (Hunter Kill Crash Prevention)
+            if (isHunterPounceActive && pouncedPlayerId === playerId) {
+                endHunterPounce(); // Terminate the pounce state immediately
+                disabledPlayerIds.delete(pouncedPlayerId);
+                disabledPlayerIds.delete(playerId);
+            }
+            if (smokerPullActive && pulledPlayerId === playerId) {
+                endSmokerPull(); // Terminate the pull state immediately
+                disabledPlayerIds.delete(pulledPlayerId);
+                disabledPlayerIds.delete(playerId);
+            }
+        }
+        
+        // 4. Remove the player from the master tracker (always done last)
+        delete ZombiePlayer.allPlayers[id];//idstr
+        disabledPlayerIds.delete(pouncedPlayerId);
+        disabledPlayerIds.delete(pulledPlayerId);
+        disabledPlayerIds.delete(playerId);
+        console.log(`Global Cleanup: Removing dead human player ID ${playerId} from all trackers.`);
+    }
+}
+
     // --- SMOKER COOLDOWN COMPLETION CHECK ---
     if (isSmokerOnCooldown) {
         
@@ -2166,7 +2370,7 @@ export function OngoingGlobal() {
 
         if (mod.IsPlayerValid(smokerPlayer)) {
             // Give back 1 round of reserve ammo
-            mod.SetInventoryMagazineAmmo(smokerPlayer, mod.InventorySlots.PrimaryWeapon, 1);
+            //mod.SetInventoryMagazineAmmo(smokerPlayer, mod.InventorySlots.PrimaryWeapon, 1);
             console.log(`Smoker (ID: ${smokerIdAwaitingAmmo}) ammo restored.`);
         }
         
@@ -2176,68 +2380,7 @@ export function OngoingGlobal() {
     }
     // ------------------------------------------
 
-// ==========================================================
-// --- TOP-LEVEL DEAD PLAYER CLEANUP (Crash Defense & Status Update) ---
-// ==========================================================
-for (const idStr in ZombiePlayer.allPlayers) {
-    const playerId = parseInt(idStr);
-    // Note: 'player' is the mod.Player object, which becomes invalid when they die/undeploy.
-    const pObj = ZombiePlayer.allPlayers[idStr];
-    const player = pObj.player; 
-    
-    // ... (CRITICAL CRASH FIX & GLOBAL CLEANUP) ...
-    if (!player || !mod.IsPlayerValid(player)) {
-        
-        // 1. Retrieve the ZombiePlayer object using the ID (since the player object is invalid)
-        // Assuming ZombiePlayer.get(playerId) works or you can use ZombiePlayer.allPlayers[idStr]
-        let zPlayer = ZombiePlayer.get(player); 
-
-        if (zPlayer) {
-            // A. PLAYER STATUS UPDATE (Your requested logic, only if not already marked dead)
-            if (zPlayer.isAlive) { 
-                zPlayer.isAlive = false;
-                zPlayer.deaths++;
-                
-                // B. GAME OVER CHECK
-                if (areAllPlayersDead()) {
-                    triggerGameOver();
-                }
-                console.log(`OngoingGlobal detected death of player ${playerId} and updated status.`);
-            }
-
-            // 2. Clean up player-specific tracking maps (General Crash Prevention)
-            delete playerShoveStates[playerId];
-            delete playerReloadTracking[playerId];
-            delete engineerStates[playerId];
-            destroyEngineerUI(pObj);
-            delete supportStates[playerId];
-            disabledPlayerIds.delete(playerId);
-            disabledPlayerIds.delete(pouncedPlayerId);
-            disabledPlayerIds.delete(pulledPlayerId);
-            // Add any other player state maps here:
-            // delete playerReloadTracking[playerId]; 
-            
-            // 3. Clean up Special Infected Locks (Hunter Kill Crash Prevention)
-            if (isHunterPounceActive && pouncedPlayerId === playerId) {
-                endHunterPounce(); // Terminate the pounce state immediately
-                disabledPlayerIds.delete(pouncedPlayerId);
-                disabledPlayerIds.delete(playerId);
-            }
-            if (smokerPullActive && pulledPlayerId === playerId) {
-                endSmokerPull(); // Terminate the pull state immediately
-                disabledPlayerIds.delete(pulledPlayerId);
-                disabledPlayerIds.delete(playerId);
-            }
-        }
-        
-        // 4. Remove the player from the master tracker (always done last)
-        delete ZombiePlayer.allPlayers[idStr];
-        disabledPlayerIds.delete(pouncedPlayerId);
-        disabledPlayerIds.delete(pulledPlayerId);
-        disabledPlayerIds.delete(playerId);
-        console.log(`Global Cleanup: Removing dead human player ID ${playerId} from all trackers.`);
-    }
-}
+//defense
 
     // --- SMOKER PULL ACTION LOOP (The new SetInterval replacement) ---
     if (smokerPullActive) {
@@ -2250,7 +2393,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
         const MERCY_HEALTH_THRESHOLD = 15;
 
         // Validate (OnPlayerDied should catch this, but good safety check)
-            if (!mod.IsPlayerValid(currentSmoker) || !mod.IsPlayerValid(currentPlayer)) {
+            if (!mod.IsPlayerValid(currentSmoker) || !mod.IsPlayerValid(currentPlayer)|| !mod.GetSoldierState(currentPlayer, mod.SoldierStateBool.IsAlive)) {
                 endSmokerPull();
                 // Stops any further code in this specific 0.75s tick from running on the dead player.
                 //return;
@@ -2265,7 +2408,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
                 mod.DealDamage(currentPlayer, SMOKER_PULL_DAMAGE, currentSmoker); 
                 
                 // POST-DAMAGE CHECK: Check if the damage was lethal and clean up
-                if (!mod.IsPlayerValid(currentPlayer)) {
+                if (!mod.IsPlayerValid(currentPlayer)|| !mod.GetSoldierState(currentPlayer, mod.SoldierStateBool.IsAlive)) {
                     endSmokerPull(); 
                 }
             } 
@@ -2293,7 +2436,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
             const victim = ZombiePlayer.allPlayers[pouncedPlayerId]?.player;
 
             // Validate (OnPlayerDied should catch this, but good safety check)
-            if (!mod.IsPlayerValid(hunter) || !mod.IsPlayerValid(victim)) {
+            if (!mod.IsPlayerValid(hunter) || !mod.IsPlayerValid(victim)|| !mod.GetSoldierState(hunter, mod.SoldierStateBool.IsAlive)|| !mod.GetSoldierState(victim, mod.SoldierStateBool.IsAlive)) {
                 endHunterPounce();
                 // Stops any further code in this specific 0.75s tick from running on the dead player.
                 //return;
@@ -2306,7 +2449,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
                 // Apply Damage: Only if the player is above the threshold
                 mod.DealDamage(victim, HUNTER_POUNCE_DAMAGE, hunter);
                 // POST-DAMAGE CHECK: Check if the damage was lethal and clean up
-                if (!mod.IsPlayerValid(victim)) {
+                if (!mod.IsPlayerValid(victim)|| !mod.GetSoldierState(victim, mod.SoldierStateBool.IsAlive)) {
                     endHunterPounce(); 
                 }
             } 
@@ -2345,7 +2488,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
                     // Find a Hunter that is 'idle' (not stalking, leaping, or pinned)
                     if (!hunterState || hunterState.state === 'idle') {
                         const hunter = Zombie.allZombies[hunterId]?.player;
-                        if (!mod.IsPlayerValid(hunter)) continue;
+                        if (!mod.IsPlayerValid(hunter)|| !mod.GetSoldierState(hunter, mod.SoldierStateBool.IsAlive)) continue;
 
                         const hunterPos = mod.GetSoldierState(hunter, mod.SoldierStateVector.GetPosition);
                         
@@ -2391,13 +2534,13 @@ for (const idStr in ZombiePlayer.allPlayers) {
     }
 
     // 2. POUNCE STATE MACHINE (Process active Hunters)
-    for (const hunterIdStr in hunterPounceStates) {
-        const hunterId = parseInt(hunterIdStr);
-        const stateData = hunterPounceStates[hunterId];
-        const hunter = Zombie.allZombies[hunterId]?.player;
-        const target = ZombiePlayer.allPlayers[stateData.targetId]?.player;
+    for (let hunteridstr in hunterPounceStates) { //idstr
+        let hunterId = parseInt(hunteridstr); //const
+        let stateData = hunterPounceStates[hunterId]; //const
+        let hunter = Zombie.allZombies[hunterId]?.player; //const
+        let target = ZombiePlayer.allPlayers[stateData.targetId]?.player; //const
 
-        if (!mod.IsPlayerValid(hunter) || !mod.IsPlayerValid(target)) {
+        if (!mod.IsPlayerValid(hunter) || !mod.IsPlayerValid(target)|| !mod.GetSoldierState(hunter, mod.SoldierStateBool.IsAlive)|| !mod.GetSoldierState(target, mod.SoldierStateBool.IsAlive)) {
             // Hunter or target died/left, clean up state
             delete hunterPounceStates[hunterId];
             continue;
@@ -2464,14 +2607,14 @@ for (const idStr in ZombiePlayer.allPlayers) {
     }
 
     // --- ZOMBIE AI UPDATE & HEALTH CHECK LOOP ---
-    for (const idStr in ZombiePlayer.allPlayers) {
-    for (let playerId in ZombiePlayer.allPlayers) {
-        let zombiePlayer = ZombiePlayer.allPlayers[playerId];
-        const zPlayer = ZombiePlayer.allPlayers[idStr];
+    for (let id in ZombiePlayer.allPlayers) { //const idstr
+    for (let playerId in ZombiePlayer.allPlayers) { //let
+        let zombiePlayer = ZombiePlayer.allPlayers[playerId]; //let
+        let zPlayer = ZombiePlayer.allPlayers[id]; //const
 
         // STEP 1: FAST FILTER - Check if our custom data object exists
     if (!zPlayer) {
-        delete ZombiePlayer.allPlayers[idStr]; 
+        delete ZombiePlayer.allPlayers[id]; //idstr
         continue;
     }
     
@@ -2480,8 +2623,8 @@ for (const idStr in ZombiePlayer.allPlayers) {
     const isAlive = mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive);
 
     // STEP 2: STALE ENGINE OBJECT VALIDATION - Check if the engine object is valid
-    if (!mod.IsPlayerValid(player)) {
-        delete ZombiePlayer.allPlayers[idStr]; 
+    if (!mod.IsPlayerValid(player)|| !mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
+        delete ZombiePlayer.allPlayers[id]; //idstr
         continue; 
     }
 
@@ -2492,11 +2635,11 @@ for (const idStr in ZombiePlayer.allPlayers) {
         
         if (!isAlive) {
             // Cleanup the dead player immediately
-            delete ZombiePlayer.allPlayers[idStr];
+            delete ZombiePlayer.allPlayers[id]; //idstr
             continue;
         }
 
-        if (mod.IsPlayerValid(player)) {
+        if (mod.IsPlayerValid(player) && mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
             
             // 1. Store the CURRENT health into the PREVIOUS health variable
             zombiePlayer.previousHealth = zombiePlayer.currentHealth;
@@ -2556,7 +2699,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
         // due to the player object being destroyed, this block catches it, 
         // cleans up the custom data, and allows the server to continue.
         // console.log(`Zombie AI system gracefully skipped player ${playerId} due to error.`);
-        delete ZombiePlayer.allPlayers[idStr]; 
+        delete ZombiePlayer.allPlayers[id]; //idstr
         continue;
                     }
                 }
@@ -2597,7 +2740,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
                     }
                 }
                 
-                if (targetPlayer && mod.IsPlayerValid(targetPlayer)) {
+                if (targetPlayer && mod.IsPlayerValid(targetPlayer)&& mod.GetSoldierState(targetPlayer, mod.SoldierStateBool.IsAlive)) {
                     growlSFX = mod.SpawnObject(
                         mod.RuntimeSpawn_Common.SFX_Alarm, 
                         zombiePos, 
@@ -3008,7 +3151,7 @@ if (stunEndTime) {
     // -----------------------------------------------------
     // This runs only if we are NOT in close combat.
     // === NEW LOGIC TO PREVENT FREEZING WITH LONG INTERVALS ===
-        if (ZOMBIE_TARGET_UPDATE_INTERVAL > 0.9) { //1.6
+        if (ZOMBIE_TARGET_UPDATE_INTERVAL > 0.6) { //1.6
             let timeUntilNextUpdate = (lastUpdate + ZOMBIE_TARGET_UPDATE_INTERVAL) - currentTime;
             
             // If we have more than 0.5s remaining until the next scheduled update, 
@@ -3022,10 +3165,10 @@ if (stunEndTime) {
                 let nearestPlayer = findNearestPlayer(zombiePos);
                 if (nearestPlayer) {
                     let playerPos = mod.GetSoldierState(nearestPlayer, mod.SoldierStateVector.GetPosition);
-                    mod.AIMoveToBehavior(player, playerPos);
+                    //mod.AIMoveToBehavior(player, playerPos);
                 } else {
                     // Just move forward if no player is found (shouldn't happen)
-                    mod.AIMoveToBehavior(player, zombiePos);
+                    //mod.AIMoveToBehavior(player, zombiePos);
                 }
                 
                 // CRITICAL: Skip the scheduled target update check below
@@ -3057,13 +3200,13 @@ if (stunEndTime) {
 // 1. GLOBAL AMMO BONUS FOR EMPTY RELOAD (Primary & Secondary)
 // ============================================
 
-for (const idStr in ZombiePlayer.allPlayers) {
-    const playerId = parseInt(idStr);
-    const zpInstance = ZombiePlayer.allPlayers[playerId]; 
-    const player = zpInstance.player; 
+for (let id in ZombiePlayer.allPlayers) { //const idstr
+    let playerId = parseInt(id); //const
+    let zpInstance = ZombiePlayer.allPlayers[playerId]; //const  
+    let player = zpInstance.player; //const
 
     // --- VALIDITY CHECK: Only run for valid players ---
-    if (!mod.IsPlayerValid(player)) {
+    if (!mod.IsPlayerValid(player)|| !mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
         continue;
     }
 
@@ -3131,9 +3274,9 @@ for (const idStr in ZombiePlayer.allPlayers) {
 // Only enter the loop if there is at least one player being tracked for shoves.
 if (Object.keys(playerShoveStates).length > 0) {
 
-    for (const idStr in playerShoveStates) {
-        const playerId = parseInt(idStr);
-        const state = playerShoveStates[playerId];
+    for (let id in playerShoveStates) { //const idstr
+        let playerId = parseInt(id); //const 
+        let state = playerShoveStates[playerId]; //const
         
         // --- NEW: Get player and their stats ---
     const player = ZombiePlayer.allPlayers[playerId]?.player;
@@ -3181,7 +3324,7 @@ if (Object.keys(playerShoveStates).length > 0) {
             state.currentStamina = maxStamina; // <-- USE STATS
             state.isRestricted = false;
             
-            if (mod.IsPlayerValid(player)) {
+            if (mod.IsPlayerValid(player)&& mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
                 mod.EnableInputRestriction(player, mod.RestrictedInputs.SelectMelee, false);
             }
         }
@@ -3194,9 +3337,9 @@ if (Object.keys(playerShoveStates).length > 0) {
 //    - Reads class-based damage (e.g., 35 or 60) to trigger the shove.
 //    - Tracks the swing in shovesRequestedThisTick for single stamina consumption.
 // ============================================
-for (const zombieIdStr in Zombie.allZombies) {
-    const zombieId = parseInt(zombieIdStr);
-    const zombie = Zombie.allZombies[zombieId];
+for (let zombieIdStr in Zombie.allZombies) { //const idstr
+    let zombieId = parseInt(zombieIdStr); //const 
+    let zombie = Zombie.allZombies[zombieId]; //const
     
     if (!zombie || !mod.IsPlayerValid(zombie.player) || !mod.GetSoldierState(zombie.player, mod.SoldierStateBool.IsAlive)) {
         delete zombiePreviousHealth[zombieId]; 
@@ -3275,13 +3418,13 @@ if (damageTaken <= 0) {
 // the block below and continues to the next section (Zombie AI).
 if (Object.keys(shovesRequestedThisTick).length > 0) {
 
-for (const idStr in shovesRequestedThisTick) {
-    const playerId = parseInt(idStr);
-    const requestData = shovesRequestedThisTick[playerId];
+for (let id in shovesRequestedThisTick) { //const idstr
+    let playerId = parseInt(id); //const 
+    let requestData = shovesRequestedThisTick[playerId]; //const
     
     // Get player object and state
-    const player = ZombiePlayer.allPlayers[playerId]?.player;
-    const playerState = playerShoveStates[playerId];
+    const player = ZombiePlayer.allPlayers[playerId]?.player; //const
+    const playerState = playerShoveStates[playerId]; //const
 
     // NEW DEBUG CHECK: Ensure player and state are valid before continuing
     if (!player || !playerState) {
@@ -3345,15 +3488,15 @@ for (const idStr in shovesRequestedThisTick) {
     }
     
     // --- 3. AOE Shove Application (Loop over ALL zombies for the effect) ---
-    for (const zombieIdStr in Zombie.allZombies) {
-        const zombieId = parseInt(zombieIdStr);
-        const zombie = Zombie.allZombies[zombieId];
+    for (let zombieidstr in Zombie.allZombies) { //const zombieidstr
+        let zombieId = parseInt(zombieidstr); //const
+        let zombie = Zombie.allZombies[zombieId]; //const
         
         if (!zombie || !mod.IsPlayerValid(zombie.player) || !mod.GetSoldierState(zombie.player, mod.SoldierStateBool.IsAlive)) {
             continue;
         }
 
-        const zombiePlayer = zombie.player;
+        const zombiePlayer = zombie.player; //const
         const zombiePos = mod.GetSoldierState(zombiePlayer, mod.SoldierStateVector.GetPosition);
         
         const vectorToZombie = CustomVectorSubtract(zombiePos, requestData.playerPos);
@@ -3424,22 +3567,22 @@ processSupportRegen(currentTime);
 // ============================================
 // 5. ZOMBIE SLAP, LEAP, AND STUCK DETECTION
 // ============================================
-for (const idStr in Zombie.allZombies) {
-    const zombieId = parseInt(idStr);
-    const zObj = Zombie.allZombies[idStr];
+for (let id in Zombie.allZombies) { //const idstr
+    let zombieId = parseInt(id); //const
+    let zObj = Zombie.allZombies[id]; //const
     // Retrieve the player object
-    const zombiePlayer = zObj?.player; 
+    let zombiePlayer = zObj?.player; //const
     
     // ==========================================================
     // --- CRITICAL CRASH FIX & GLOBAL CLEANUP --- (Top of Loop)
     // ==========================================================
     // If the zombie object doesn't exist or is no longer a valid player object,
     // this is the source of the non-local crash.
-    if (!zombiePlayer || !mod.IsPlayerValid(zombiePlayer)) {
+    if (!zombiePlayer || !mod.IsPlayerValid(zombiePlayer)|| !mod.GetSoldierState(zombiePlayer, mod.SoldierStateBool.IsAlive)) {
         
         // 1. Permanent Cleanup of Global State:
         // Remove the invalid zombie from ALL global trackers that use its ID.
-        delete Zombie.allZombies[idStr];
+        delete Zombie.allZombies[id];
         delete zombieStunTimers[zombieId];
         delete zombieLastDamageTime[zombieId]; 
         delete zombieSlapWindups[zombieId];
@@ -3465,13 +3608,13 @@ for (const idStr in Zombie.allZombies) {
     // ============================================
     // A. SUPPORT CLASS AMMO BONUS LOGIC
     // ============================================
-    for (const idStr in supportStates) {
-        const id = parseInt(idStr);
-        const player = ZombiePlayer.allPlayers[id].player;
-        const state = supportStates[id];
+    for (let idstr in supportStates) { //const idstr
+        let id = parseInt(idstr); //const
+        let player = ZombiePlayer.allPlayers[id].player; //const
+        let state = supportStates[id]; //const
 
         // Ensure player is valid and is the correct class
-        if (!mod.IsPlayerValid(player) || !mod.IsSoldierClass(player, SUPPORT_CLASS)) {
+        if (!mod.IsPlayerValid(player) || !mod.IsSoldierClass(player, SUPPORT_CLASS)|| !mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
             // Player changed class or is invalid, delete state
             delete supportStates[id];
             continue;
@@ -3522,9 +3665,9 @@ for (const idStr in Zombie.allZombies) {
     // ============================================
 
     // Iterate only over players we know are (or were) Engineers
-for (const idStr in engineerStates) {
-    const id = parseInt(idStr);
-    const state = engineerStates[id];
+for (let idstr in engineerStates) { //const idstr
+    let id = parseInt(idstr); //const
+    let state = engineerStates[id]; //const
     
     // FIX: Use the robust ZombiePlayer map to retrieve the player instance.
     const zombiePlayerInstance = ZombiePlayer.allPlayers[id]; 
@@ -3537,7 +3680,7 @@ for (const idStr in engineerStates) {
     
     const player = zombiePlayerInstance.player;
 
-    if (!mod.IsPlayerValid(player)) {
+    if (!mod.IsPlayerValid(player)|| !mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
         delete engineerStates[id]; // Clean up if the raw player object is invalid
         continue;
     }
@@ -3591,7 +3734,8 @@ for (const idStr in engineerStates) {
                 state.lockoutEndTime = currentTime + OVERHEAT_LOCKOUT_TIME;
                 
                 // Immediately set ammo to 0 to "break" the weapon
-                mod.SetInventoryAmmo(player, SECONDARY_WEAPON_SLOT, 0); 
+                mod.SetInventoryAmmo(player, SECONDARY_WEAPON_SLOT, 0);
+                mod.SetInventoryMagazineAmmo(player, SECONDARY_WEAPON_SLOT, 0); 
                 continue;
             }
         } else {
@@ -3617,45 +3761,12 @@ for (const idStr in engineerStates) {
     }
     // ============================================
 
-// ============================================
-// 3. ENGINEER UI DRAWING
-// ============================================
-
-for (const idStr in engineerStates) {
-    const id = parseInt(idStr);
-    const zpInstance = ZombiePlayer.allPlayers[id];
-    const engineerState = engineerStates[id];
-
-    // Safety checks
-    if (!zpInstance || !zpInstance.player || !mod.IsPlayerValid(zpInstance.player)) {
-         continue;
-    }
-
-    // Check if the player is still the Engineer
-    if (mod.IsSoldierClass(zpInstance.player, mod.SoldierClass.Engineer)) {
-        
-        // If the widget is missing (e.g., player respawned), create it
-        if (!zpInstance.engineerContainerId) {
-            createEngineerUI(zpInstance.player);
-        }
-        
-        // Call the new global update function
-        updateEngineerUI(zpInstance, engineerState); 
-
-    } else {
-        // Player changed class, destroy the UI
-        destroyEngineerUI(zpInstance);
-        delete engineerStates[id];
-    }
-}
-// ============================================
-
 // --------------------------------------------
 // 4. POST-TICK HEALTH UPDATE (The loop that MUST be last)
 // --------------------------------------------
-for (const zombieIdStr in Zombie.allZombies) {
-    const zombieId = parseInt(zombieIdStr);
-    const zombie = Zombie.allZombies[zombieId];
+for (let id in Zombie.allZombies) { //const zombieIdStr
+    let zombieId = parseInt(id); // zombieIdStr const
+    let zombie = Zombie.allZombies[id]; //zombieId const
     
     // CRITICAL: This is the absolute last action: record current health.
     if (!zombie || !mod.IsPlayerValid(zombie.player) || !mod.GetSoldierState(zombie.player, mod.SoldierStateBool.IsAlive)) {
@@ -3844,7 +3955,7 @@ function endSmokerPull() {
     // Remove player from the disabled set
     disabledPlayerIds.delete(pulledPlayerId);
 
-    if (mod.IsPlayerValid(player)) {
+    if (mod.IsPlayerValid(player)&& mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
         // A. Remove Locks and Restore Camera
         mod.EnableAllInputRestrictions(player, false); // Unlock inputs
         // 1. Explicitly ENABLE all standard movement/action inputs
@@ -3897,7 +4008,7 @@ function endSmokerPull() {
 
     // --- Cleanup Smoker State (The Killer) ---
     const smoker = Zombie.allZombies[smokerPullerId]?.player;
-    if (mod.IsPlayerValid(smoker)) {
+    if (mod.IsPlayerValid(smoker)&& mod.GetSoldierState(smoker, mod.SoldierStateBool.IsAlive)) {
         // A. Remove Locks and Restore AI Behavior
         mod.EnableAllInputRestrictions(smoker, false); // Unlock AI inputs
         
@@ -4000,7 +4111,7 @@ function endHunterPounce() {
     // Remove player from the disabled set
     disabledPlayerIds.delete(pouncedPlayerId);
 
-    if (mod.IsPlayerValid(player)) {
+    if (mod.IsPlayerValid(player)&& mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
         //mod.EnableAllInputRestrictions(player, false);
         // 1. Explicitly ENABLE all standard movement/action inputs
         mod.EnableInputRestriction(player, mod.RestrictedInputs.CameraPitch, false);
@@ -4047,7 +4158,7 @@ function endHunterPounce() {
 
     // --- Cleanup Hunter State ---
     const hunter = Zombie.allZombies[hunterPouncerId]?.player;
-    if (mod.IsPlayerValid(hunter)) {
+    if (mod.IsPlayerValid(hunter)&& mod.GetSoldierState(hunter, mod.SoldierStateBool.IsAlive)) {
         mod.EnableAllInputRestrictions(hunter, false);
         // Reset to default Hunter state (fast, crouched)
         mod.AISetMoveSpeed(hunter, mod.MoveSpeed.InvestigateRun);
@@ -4086,26 +4197,26 @@ function processSupportRegen(currentTime: number) { //async?
 const activeSupportPlayers: mod.Player[] = [];
 
 // --- A. FIND ALL ACTIVE SUPPORT PLAYERS (Aura Sources) ---
-for (const idStr in ZombiePlayer.allPlayers) {
+for (let id in ZombiePlayer.allPlayers) { //const idStr
     //const playerId = parseInt(idStr);
-    const zPlayer = ZombiePlayer.allPlayers[idStr]; //ZombiePlayer.get(playerId);
-    const player = zPlayer.player; //mod.GetPlayerById(playerId);
+    let zPlayer = ZombiePlayer.allPlayers[id]; //ZombiePlayer.get(playerId); idstr const
+    let player = zPlayer.player; //mod.GetPlayerById(playerId); const
 
     // Safety check for players who might be logging off
-    if (!mod.IsPlayerValid(player)) {
+    if (!mod.IsPlayerValid(player) || !mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive)) {
         continue;
     }
     
     // Check if player is valid, alive, and the designated support class
-    if (mod.IsPlayerValid(player) && zPlayer && zPlayer.isAlive && mod.IsSoldierClass(player, SUPPORT_CLASS)) {
+    if (mod.IsPlayerValid(player) && zPlayer && mod.GetSoldierState(player, mod.SoldierStateBool.IsAlive) && mod.IsSoldierClass(player, SUPPORT_CLASS)) {
         activeSupportPlayers.push(player);
     }
 }
 
 // --- B. ITERATE THROUGH ALL POTENTIAL TARGETS ---
-for (const idStr in ZombiePlayer.allPlayers) {
-    const targetPlayerId = parseInt(idStr);
-    const zTargetPlayer = ZombiePlayer.allPlayers[idStr];
+for (let id in ZombiePlayer.allPlayers) {
+    const targetPlayerId = parseInt(id);
+    const zTargetPlayer = ZombiePlayer.allPlayers[id];
 
     // CRASH PREVENTION STEP 1: Check Custom Object Data and Alive Status
     // This is the fastest check to filter out dead or invalid players
@@ -4125,7 +4236,7 @@ for (const idStr in ZombiePlayer.allPlayers) {
         //}
         // STEP 2: STALE ENGINE OBJECT VALIDATION (CRASH PREVENTION)
     // Checks for: Player object is still valid in the game engine (must be checked after targetPlayer is defined)
-    if (!mod.IsPlayerValid(targetPlayer)) {
+    if (!mod.IsPlayerValid(targetPlayer) || !mod.GetSoldierState(targetPlayer, mod.SoldierStateBool.IsAlive)) {
         delete playerRegenTracking[targetPlayerId]; 
         continue; 
     }
@@ -4263,158 +4374,6 @@ for (const idStr in ZombiePlayer.allPlayers) {
 }
 }
 
-/**
- * Creates the Engineer Overheat UI using the successful robust binding pattern.
- * This is the final, clean UI implementation.
- */
-async function createEngineerUI(player: mod.Player) {
-    const playerId = mod.GetObjId(player); 
-    const zpInstance = ZombiePlayer.allPlayers[playerId];
-
-    if (!zpInstance || zpInstance.engineerContainerId) {
-        return; 
-    }
-    
-    // Use the player's ID for unique widget names
-    const containerName = "eng_container_" + playerId;
-    const barName = "eng_bar_" + playerId;
-    const textName = "eng_text_" + playerId; 
-
-    // Wait 1 tick to let the UI system process the name registration
-    await mod.Wait(0); 
-
-    try {
-        // 1. CREATE CONTAINER (Position: TopLeft [855, 623.55], Size: [210, 210])
-        mod.AddUIContainer(
-            containerName,
-            mod.CreateVector(855, 623.55, 0), // <--- Correct Position
-            mod.CreateVector(210, 210, 0),    // <--- Correct Size
-            mod.UIAnchor.TopLeft,
-            mod.GetUIRoot(),
-            true, // Visible
-            0,    // Padding
-            mod.CreateVector(0.2, 0.2, 0.2), // <--- Gray Background
-            1.0,  // bgAlpha
-            mod.UIBgFill.Blur,               // <--- Blur Fill
-            playerId // Binding by ID
-        );
-        const container = mod.FindUIWidgetWithName(containerName);
-
-        if (!container) {
-            console.error(`[UI ERROR] Failed to create Container for player ${playerId}`);
-            return;
-        }
-
-        // 2. CREATE BAR IMAGE (Child, full size of container)
-        mod.AddUIImage(
-            barName,
-            mod.CreateVector(0, 0, 0), 
-            mod.CreateVector(210, 210, 0), // Relative to container
-            mod.UIAnchor.TopLeft,
-            container, // Parent to container
-            true, 0,
-            mod.CreateVector(0, 0, 0), 0, mod.UIBgFill.None, // Transparent
-            mod.UIImageType.None,
-            mod.CreateVector(1, 1, 1), 1.0,
-            playerId 
-        );
-        
-        // 3. CREATE TEXT LABEL (Child, centered)
-        mod.AddUIText(
-            textName,
-            mod.CreateVector(0, 0, 0),
-            mod.CreateVector(150, 150, 0), // Relative size
-            mod.UIAnchor.Center,
-            container, // Parent to container
-            true, 0, 
-            mod.CreateVector(0, 0, 0), 0, mod.UIBgFill.None, // Transparent
-            mod.Message(""), // Initial text
-            38, 
-            mod.CreateVector(1, 1, 1), 1.0,
-            mod.UIAnchor.Center,
-            playerId
-        );
-        
-        // --- 4. RACE CONDITION FIX: Wait one tick for the children to register ---
-        await mod.Wait(0); 
-        
-        // 5. Find and Store the IDs
-        zpInstance.engineerContainerId = container;
-        zpInstance.engineerBarId = mod.FindUIWidgetWithName(barName);
-        zpInstance.engineerTextId = mod.FindUIWidgetWithName(textName);
-
-        if (zpInstance.engineerBarId && zpInstance.engineerTextId) {
-            console.log(`[UI DEBUG] Engineer UI fully created and found for ${playerId}.`);
-        } else {
-            console.error(`[UI DEBUG] FAILED to find child widgets for ${playerId}.`);
-        }
-
-    } catch (e) {
-        console.error(`[UI CRASH] Error during direct UI creation: ${e}`);
-    }
-}
-
-/**
- * Updates the Engineer UI's text and color based on the current state.
- * Called from OngoingGlobal.
- */
-function updateEngineerUI(zpInstance: ZombiePlayer, state: EngineerState) {
-    // Check if the widgets have been successfully created
-    if (!zpInstance.engineerTextId || !zpInstance.engineerBarId) {
-        return;
-    }
-    
-    let barColorArray = COLOR_RED_ARRAY;
-    let statusText = "";
-    let barRatio = 0; 
-
-    // --- State Logic ---
-    if (state.isOverheated) {
-        barColorArray = COLOR_ORANGE_ARRAY; 
-        const timeRemaining = state.lockoutEndTime - mod.GetMatchTimeElapsed();
-        statusText = `LOCKOUT: ${Math.max(0, timeRemaining).toFixed(1)}s`;
-        barRatio = 1.0 - (timeRemaining / OVERHEAT_LOCKOUT_TIME); 
-
-    } else {
-        barRatio = Math.min(Math.max(0, state.overheatTimer / ENGINEER_MAX_OVERHEAT), 1.0);
-        
-        if (state.overheatTimer >= ENGINEER_MAX_OVERHEAT) {
-            barColorArray = COLOR_GREEN_ARRAY;
-            statusText = "READY";
-        } else {
-            barColorArray = COLOR_RED_ARRAY;
-            statusText = `HEAT: ${state.overheatTimer.toFixed(1)}s`;
-        }
-    }
-    
-    // --- UI Updates ---
-    const messageText = mod.Message(statusText); 
-    mod.SetUITextLabel(zpInstance.engineerTextId, messageText); 
-    
-    const colorVector = mod.CreateVector(barColorArray[0], barColorArray[1], barColorArray[2]);
-    mod.SetUIImageColor(zpInstance.engineerBarId, colorVector);
-    
-    // NOTE: You still need a function to set the bar's fill/progress
-    // e.g., mod.SetUIProgressBar(zpInstance.engineerBarId, barRatio);
-}
-
-/**
- * Destroys a player's Engineer UI widgets.
- * Called from OnPlayerDied.
- */
-function destroyEngineerUI(zpInstance: ZombiePlayer) {
-    // We only need to destroy the main container.
-    // The children (bar, text) will be destroyed with it.
-    if (zpInstance.engineerContainerId) {
-        mod.DeleteUIWidget(zpInstance.engineerContainerId);
-    }
-    
-    // Clear the IDs from the instance
-    zpInstance.engineerContainerId = undefined;
-    zpInstance.engineerBarId = undefined;
-    zpInstance.engineerTextId = undefined;
-}
-
     // Add this new function to your script, ideally near the end or in the main logic section
 async function updateTargetIntervalLoop() {
     console.log("Starting Dynamic Target Update Interval Loop...");
@@ -4436,26 +4395,26 @@ async function updateTargetIntervalLoop() {
                 newInterval = 0.2; // Highly responsive 0.2
             } else if (currentZombies <= 24) {
                 newInterval = 0.4; //0.4
-            //} else if (currentZombies <= 45) {
-                //newInterval = 0.6;
-            } else if (currentZombies <= 50) {
-                newInterval = 0.6; //0.6
-            } else if (currentZombies <= 53) { 
-                newInterval = 0.9; // Default/Medium 0.9
-            } else if (currentZombies <= 62) {
+            } else if (currentZombies <= 32) {
+                newInterval = 0.6;
+            } else if (currentZombies <= 36) { // 50, 0.6
+                newInterval = 0.8; //0.6
+            } else if (currentZombies <= 40) { 
+                newInterval = 1.2; // Default/Medium 0.9
+            } else if (currentZombies <= 43) {
                 newInterval = 1.75; // Less responsive (performance saving) 1.75
-            } else if (currentZombies <= 70) {
+            } else if (currentZombies <= 45) {
                 newInterval = 2.25; // Less responsive (performance saving)
-            } else if (currentZombies <= 77) {
-                newInterval = 3.60; // Less responsive (performance saving)
-            } else if (currentZombies <= 84) {
-                newInterval = 6.25;
-            } else if (currentZombies <= 90) {
-                newInterval = 8.60;
-            } else if (currentZombies <= 92) {
-                newInterval = 15.25;
+            } else if (currentZombies <= 47) {
+                newInterval = 3.25; // Less responsive (performance saving)
+            } else if (currentZombies <= 49) {
+                newInterval = 4.25;
+            } else if (currentZombies <= 52) {
+                newInterval = 5.20;
+            } else if (currentZombies <= 54) {
+                newInterval = 7.25;
             } else { // currentZombies > 62
-                newInterval = 20.60; // Least responsive (major performance saving)
+                newInterval = 9.60; // Least responsive (major performance saving) //20.60
                 
             }
 
@@ -4466,17 +4425,17 @@ async function updateTargetIntervalLoop() {
             if (currentZombies <= 15) {
                 newCloseRange = 3.0; // Very close range for low counts (high skill floor) 3.0
             } else if (currentZombies <= 24) {
-                newCloseRange = 3.0; // Default range 5.0
+                newCloseRange = 3.5; // Default range 5.0
             } else if (currentZombies <= 32) {
-                newCloseRange = 3.0; // Wider range for moderate crowds 6.5
+                newCloseRange = 4.0; // Wider range for moderate crowds 6.5
             } else if (currentZombies <= 35) {
-                newCloseRange = 3.0; //7.0
+                newCloseRange = 5.5; //7.0
             } else if (currentZombies <= 40) {
-                newCloseRange = 3.0; //7.75
+                newCloseRange = 6.5; //7.75
             } else if (currentZombies <= 50) {
-                newCloseRange = 3.0; //8.5
+                newCloseRange = 7.5; //8.5
             } else { // currentZombies > 70
-                newCloseRange = 5.0; // Very wide range for large crowds (easier for players to trigger AI) 12.0
+                newCloseRange = 12.0; // Very wide range for large crowds (easier for players to trigger AI) 12.0
             }
             
             // Apply the new interval if it's different
@@ -4513,322 +4472,4 @@ async function updateTargetIntervalLoop() {
         // Wait for the next check
         await mod.Wait(CHECK_INTERVAL_SECONDS);
     }
-}
-
-// Helper functions to create UI from a JSON object tree:
-//-----------------------------------------------------------------------------------------------//
-
-type UIVector = mod.Vector | number[];
-
-interface UIParams {
-    name: string;
-    type: string;
-    position: any;
-    size: any;
-    anchor: mod.UIAnchor;
-    parent: mod.UIWidget;
-    visible: boolean;
-    textLabel: string;
-    textColor: UIVector;
-    textAlpha: number;
-    textSize: number;
-    textAnchor: mod.UIAnchor;
-    padding: number;
-    bgColor: UIVector;
-    bgAlpha: number;
-    bgFill: mod.UIBgFill;
-    imageType: mod.UIImageType;
-    imageColor: UIVector;
-    imageAlpha: number;
-    teamId?: mod.Team;
-    playerId?: mod.Player;
-    children?: any[];
-    buttonEnabled: boolean;
-    buttonColorBase: UIVector;
-    buttonAlphaBase: number;
-    buttonColorDisabled: UIVector;
-    buttonAlphaDisabled: number;
-    buttonColorPressed: UIVector;
-    buttonAlphaPressed: number;
-    buttonColorHover: UIVector;
-    buttonAlphaHover: number;
-    buttonColorFocused: UIVector;
-    buttonAlphaFocused: number;
-}
-
-function __asModVector(param: number[]|mod.Vector) {
-    if (Array.isArray(param))
-        return mod.CreateVector(param[0], param[1], param.length == 2 ? 0 : param[2]);
-    else
-        return param;
-}
-
-function __asModMessage(param: string|mod.Message) {
-    if (typeof (param) === "string")
-        return mod.Message(param);
-    return param;
-}
-
-function __fillInDefaultArgs(params: UIParams) {
-    if (!params.hasOwnProperty('name'))
-        params.name = "";
-    if (!params.hasOwnProperty('position'))
-        params.position = mod.CreateVector(0, 0, 0);
-    if (!params.hasOwnProperty('size'))
-        params.size = mod.CreateVector(100, 100, 0);
-    if (!params.hasOwnProperty('anchor'))
-        params.anchor = mod.UIAnchor.TopLeft;
-    if (!params.hasOwnProperty('parent'))
-        params.parent = mod.GetUIRoot();
-    if (!params.hasOwnProperty('visible'))
-        params.visible = true;
-    if (!params.hasOwnProperty('padding'))
-        params.padding = (params.type == "Container") ? 0 : 8;
-    if (!params.hasOwnProperty('bgColor'))
-        params.bgColor = mod.CreateVector(0.25, 0.25, 0.25);
-    if (!params.hasOwnProperty('bgAlpha'))
-        params.bgAlpha = 0.5;
-    if (!params.hasOwnProperty('bgFill'))
-        params.bgFill = mod.UIBgFill.Solid;
-}
-
-function __setNameAndGetWidget(uniqueName: any, params: any) {
-    let widget = mod.FindUIWidgetWithName(uniqueName) as mod.UIWidget;
-    mod.SetUIWidgetName(widget, params.name);
-    return widget;
-}
-
-const __cUniqueName = "----uniquename----";
-
-function __addUIContainer(params: UIParams) {
-    __fillInDefaultArgs(params);
-    let restrict = params.teamId ?? params.playerId;
-    if (restrict) {
-        mod.AddUIContainer(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill,
-            restrict);
-    } else {
-        mod.AddUIContainer(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill);
-    }
-    let widget = __setNameAndGetWidget(__cUniqueName, params);
-    if (params.children) {
-        params.children.forEach((childParams: any) => {
-            childParams.parent = widget;
-            __addUIWidget(childParams);
-        });
-    }
-    return widget;
-}
-
-function __fillInDefaultTextArgs(params: UIParams) {
-    if (!params.hasOwnProperty('textLabel'))
-        params.textLabel = "";
-    if (!params.hasOwnProperty('textSize'))
-        params.textSize = 0;
-    if (!params.hasOwnProperty('textColor'))
-        params.textColor = mod.CreateVector(1, 1, 1);
-    if (!params.hasOwnProperty('textAlpha'))
-        params.textAlpha = 1;
-    if (!params.hasOwnProperty('textAnchor'))
-        params.textAnchor = mod.UIAnchor.CenterLeft;
-}
-
-function __addUIText(params: UIParams) {
-    __fillInDefaultArgs(params);
-    __fillInDefaultTextArgs(params);
-    let restrict = params.teamId ?? params.playerId;
-    if (restrict) {
-        mod.AddUIText(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill,
-            __asModMessage(params.textLabel),
-            params.textSize,
-            __asModVector(params.textColor),
-            params.textAlpha,
-            params.textAnchor,
-            restrict);
-    } else {
-        mod.AddUIText(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill,
-            __asModMessage(params.textLabel),
-            params.textSize,
-            __asModVector(params.textColor),
-            params.textAlpha,
-            params.textAnchor);
-    }
-    return __setNameAndGetWidget(__cUniqueName, params);
-}
-
-function __fillInDefaultImageArgs(params: any) {
-    if (!params.hasOwnProperty('imageType'))
-        params.imageType = mod.UIImageType.None;
-    if (!params.hasOwnProperty('imageColor'))
-        params.imageColor = mod.CreateVector(1, 1, 1);
-    if (!params.hasOwnProperty('imageAlpha'))
-        params.imageAlpha = 1;
-}
-
-function __addUIImage(params: UIParams) {
-    __fillInDefaultArgs(params);
-    __fillInDefaultImageArgs(params);
-    let restrict = params.teamId ?? params.playerId;
-    if (restrict) {
-        mod.AddUIImage(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill,
-            params.imageType,
-            __asModVector(params.imageColor),
-            params.imageAlpha,
-            restrict);
-    } else {
-        mod.AddUIImage(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill,
-            params.imageType,
-            __asModVector(params.imageColor),
-            params.imageAlpha);
-    }
-    return __setNameAndGetWidget(__cUniqueName, params);
-}
-
-function __fillInDefaultArg(params: any, argName: any, defaultValue: any) {
-    if (!params.hasOwnProperty(argName))
-        params[argName] = defaultValue;
-}
-
-function __fillInDefaultButtonArgs(params: any) {
-    if (!params.hasOwnProperty('buttonEnabled'))
-        params.buttonEnabled = true;
-    if (!params.hasOwnProperty('buttonColorBase'))
-        params.buttonColorBase = mod.CreateVector(0.7, 0.7, 0.7);
-    if (!params.hasOwnProperty('buttonAlphaBase'))
-        params.buttonAlphaBase = 1;
-    if (!params.hasOwnProperty('buttonColorDisabled'))
-        params.buttonColorDisabled = mod.CreateVector(0.2, 0.2, 0.2);
-    if (!params.hasOwnProperty('buttonAlphaDisabled'))
-        params.buttonAlphaDisabled = 0.5;
-    if (!params.hasOwnProperty('buttonColorPressed'))
-        params.buttonColorPressed = mod.CreateVector(0.25, 0.25, 0.25);
-    if (!params.hasOwnProperty('buttonAlphaPressed'))
-        params.buttonAlphaPressed = 1;
-    if (!params.hasOwnProperty('buttonColorHover'))
-        params.buttonColorHover = mod.CreateVector(1,1,1);
-    if (!params.hasOwnProperty('buttonAlphaHover'))
-        params.buttonAlphaHover = 1;
-    if (!params.hasOwnProperty('buttonColorFocused'))
-        params.buttonColorFocused = mod.CreateVector(1,1,1);
-    if (!params.hasOwnProperty('buttonAlphaFocused'))
-        params.buttonAlphaFocused = 1;
-}
-
-function __addUIButton(params: UIParams) {
-    __fillInDefaultArgs(params);
-    __fillInDefaultButtonArgs(params);
-    let restrict = params.teamId ?? params.playerId;
-    if (restrict) {
-        mod.AddUIButton(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill,
-            params.buttonEnabled,
-            __asModVector(params.buttonColorBase), params.buttonAlphaBase,
-            __asModVector(params.buttonColorDisabled), params.buttonAlphaDisabled,
-            __asModVector(params.buttonColorPressed), params.buttonAlphaPressed,
-            __asModVector(params.buttonColorHover), params.buttonAlphaHover,
-            __asModVector(params.buttonColorFocused), params.buttonAlphaFocused,
-            restrict);
-    } else {
-        mod.AddUIButton(__cUniqueName,
-            __asModVector(params.position),
-            __asModVector(params.size),
-            params.anchor,
-            params.parent,
-            params.visible,
-            params.padding,
-            __asModVector(params.bgColor),
-            params.bgAlpha,
-            params.bgFill,
-            params.buttonEnabled,
-            __asModVector(params.buttonColorBase), params.buttonAlphaBase,
-            __asModVector(params.buttonColorDisabled), params.buttonAlphaDisabled,
-            __asModVector(params.buttonColorPressed), params.buttonAlphaPressed,
-            __asModVector(params.buttonColorHover), params.buttonAlphaHover,
-            __asModVector(params.buttonColorFocused), params.buttonAlphaFocused);
-    }
-    return __setNameAndGetWidget(__cUniqueName, params);
-}
-
-function __addUIWidget(params: UIParams) {
-    if (params == null)
-        return undefined;
-    if (params.type == "Container")
-        return __addUIContainer(params);
-    else if (params.type == "Text")
-        return __addUIText(params);
-    else if (params.type == "Image")
-        return __addUIImage(params);
-    else if (params.type == "Button")
-        return __addUIButton(params);
-    return undefined;
-}
-
-export function ParseUI(...params: any[]) {
-    let widget: mod.UIWidget|undefined;
-    for (let a = 0; a < params.length; a++) {
-        widget = __addUIWidget(params[a] as UIParams);
-    }
-    return (globalThis as any)['libModule'].ParseUI(params);
-    return widget;
 }
